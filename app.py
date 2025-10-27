@@ -3,6 +3,13 @@ import numpy as np
 from PIL import Image
 import io
 import requests
+try:
+    import cv2
+    import tensorflow as tf
+    from mask_detection_model import FaceMaskDetector
+    DEPS_AVAILABLE = True
+except ImportError:
+    DEPS_AVAILABLE = False
 
 # Configure Streamlit page
 st.set_page_config(
@@ -178,7 +185,14 @@ st.markdown("""
 @st.cache_resource
 def load_model():
     """Load the trained model"""
-    return None  # Simplified for demo
+    if not DEPS_AVAILABLE:
+        return None
+    try:
+        detector = FaceMaskDetector()
+        detector.load_model('face_mask_detector.h5')
+        return detector
+    except Exception:
+        return None
 
 def process_image(image, detector):
     """Process uploaded image for mask detection"""
