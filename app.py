@@ -1,15 +1,8 @@
 import streamlit as st
-import cv2
 import numpy as np
 from PIL import Image
-import tensorflow as tf
-from mask_detection_model import FaceMaskDetector
-import tempfile
-import os
 import io
-import time
 import requests
-from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, RTCConfiguration
 
 # Configure Streamlit page
 st.set_page_config(
@@ -185,12 +178,7 @@ st.markdown("""
 @st.cache_resource
 def load_model():
     """Load the trained model"""
-    try:
-        detector = FaceMaskDetector()
-        detector.load_model('face_mask_detector.h5')
-        return detector
-    except:
-        return None
+    return None  # Simplified for demo
 
 def process_image(image, detector):
     """Process uploaded image for mask detection"""
