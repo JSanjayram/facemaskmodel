@@ -428,65 +428,16 @@ CNN Architecture:
         # Browser camera access
         st.info("📹 **Browser Camera Access**")
         
-        # Mobile responsive camera HTML and JavaScript
+        # Real-time camera HTML and JavaScript
         camera_html = """
-        <style>
-        .camera-container {
-            text-align: center;
-            padding: 10px;
-            max-width: 100%;
-            overflow: hidden;
-        }
-        .video-wrapper {
-            position: relative;
-            display: inline-block;
-            max-width: 100%;
-        }
-        #video, #overlay {
-            max-width: 100%;
-            height: auto;
-            border: 2px solid #4a4a4a;
-            border-radius: 8px;
-        }
-        #overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            pointer-events: none;
-        }
-        .controls {
-            margin: 15px 0;
-        }
-        .btn {
-            background: #262730;
-            color: white;
-            border: 1px solid #4a4a4a;
-            padding: 8px 16px;
-            border-radius: 5px;
-            margin: 3px;
-            font-size: 14px;
-        }
-        @media (max-width: 768px) {
-            .btn {
-                padding: 10px 15px;
-                font-size: 16px;
-                display: block;
-                width: 80%;
-                margin: 5px auto;
-            }
-        }
-        </style>
-        
-        <div class="camera-container">
-            <div class="video-wrapper">
-                <video id="video" width="640" height="480" autoplay></video>
-                <canvas id="overlay" width="640" height="480"></canvas>
-            </div>
-            <div class="controls">
-                <button id="startBtn" onclick="startRealTime()" class="btn">Start Real-time Detection</button>
-                <button id="stopBtn" onclick="stopRealTime()" class="btn">Stop Detection</button>
-            </div>
-            <div id="results" style="margin-top: 15px; color: white; font-size: 16px; word-wrap: break-word;"></div>
+        <div style="text-align: center; padding: 20px;">
+            <video id="video" width="640" height="480" autoplay style="border: 2px solid #4a4a4a; border-radius: 8px;"></video>
+            <canvas id="overlay" width="640" height="480" style="position: absolute; margin-left: -642px; border: 2px solid #4a4a4a; border-radius: 8px;"></canvas>
+            <br><br>
+            <button id="startBtn" onclick="startRealTime()" style="background: #262730; color: white; border: 1px solid #4a4a4a; padding: 10px 20px; border-radius: 5px; margin: 5px;">Start Real-time Detection</button>
+            <button id="stopBtn" onclick="stopRealTime()" style="background: #262730; color: white; border: 1px solid #4a4a4a; padding: 10px 20px; border-radius: 5px; margin: 5px;">Stop Detection</button>
+            <br><br>
+            <div id="results" style="margin-top: 20px; color: white; font-size: 18px;"></div>
             <canvas id="canvas" width="640" height="480" style="display: none;"></canvas>
         </div>
         
@@ -503,20 +454,13 @@ CNN Architecture:
             try {
                 stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { 
-                        width: { ideal: 640, max: 1280 },
-                        height: { ideal: 480, max: 720 },
+                        width: 640, 
+                        height: 480,
                         facingMode: 'user'
                     } 
                 });
                 video.srcObject = stream;
                 video.style.display = 'block';
-                
-                // Adjust overlay size to match video
-                video.onloadedmetadata = function() {
-                    overlay.width = video.videoWidth;
-                    overlay.height = video.videoHeight;
-                };
-                
                 document.getElementById('startBtn').disabled = true;
                 document.getElementById('stopBtn').disabled = false;
                 
@@ -548,7 +492,9 @@ CNN Architecture:
                 const label = face.hasMask ? 'With Mask' : 'Without Mask';
                 const confidence = (face.confidence * 100).toFixed(1);
                 
-
+                overlayContext.fillStyle = face.hasMask ? '#00ff00' : '#ff0000';
+                overlayContext.font = '16px Arial';
+                overlayContext.fillText(`${label}: ${confidence}%`, face.x, face.y - 10);
                 
                 resultText += `Face ${index + 1}: ${label} (${confidence}%) `;
             });
