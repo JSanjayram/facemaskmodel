@@ -3,14 +3,7 @@ import numpy as np
 from PIL import Image
 import io
 import requests
-try:
-    import cv2
-    import tensorflow as tf
-    from mask_detection_model import FaceMaskDetector
-    from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, RTCConfiguration
-    DEPS_AVAILABLE = True
-except ImportError:
-    DEPS_AVAILABLE = False
+DEPS_AVAILABLE = False
 
 # Configure Streamlit page
 st.set_page_config(
