@@ -9,6 +9,7 @@ import os
 import io
 import time
 import requests
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, RTCConfiguration
 
 # Configure Streamlit page
 st.set_page_config(
@@ -424,18 +425,46 @@ CNN Architecture:
         if 'webcam_active' not in st.session_state:
             st.session_state.webcam_active = False
         
-        # Cloud deployment limitation notice
-        st.warning("⚠️ **Camera Access Limitation**")
-        st.info("""
-        **For Streamlit Cloud deployment:**
-        - Direct webcam access is not available in cloud environments
-        - Use the **Image Detection** tab to upload photos from your device camera
-        - For local development, webcam features work when running locally
-        """)
+        # WebRTC camera implementation
+        st.info("📹 **Browser Camera Access** - Click 'START' and allow camera permissions when prompted")
         
-        if st.session_state.webcam_active:
-            st.error("Webcam not available in cloud deployment. Please use Image Detection tab instead.")
-            st.session_state.webcam_active = False
+        class VideoTransformer(VideoTransformerBase):
+            def __init__(self):
+                self.detector = load_model()
+                self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+            
+            def transform(self, frame):
+                img = frame.to_ndarray(format="bgr24")
+                
+                if self.detector:
+                    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                    faces = self.face_cascade.detectMultiScale(gray, 1.1, 4)
+                    
+                    for (x, y, w, h) in faces:
+                        face_roi = img[y:y+h, x:x+w]
+                        face_resized = cv2.resize(face_roi, (128, 128))
+                        face_normalized = face_resized / 255.0
+                        face_batch = np.expand_dims(face_normalized, axis=0)
+                        
+                        prediction = self.detector.model.predict(face_batch, verbose=0)[0][0]
+                        confidence = prediction if prediction > 0.5 else 1 - prediction
+                        
+                        if confidence >= confidence_threshold:
+                            mask_status = 'Without Mask' if prediction > 0.5 else 'With Mask'
+                            color = (0, 0, 255) if prediction > 0.5 else (0, 255, 0)
+                            
+                            cv2.rectangle(img, (x, y), (x+w, y+h), color, 2)
+                            label = f"{mask_status}: {confidence*100:.1f}%"
+                            cv2.putText(img, label, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+                
+                return img
+        
+        webrtc_streamer(
+            key="mask-detection",
+            video_transformer_factory=VideoTransformer,
+            rtc_configuration=RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}),
+            media_stream_constraints={"video": True, "audio": False}
+        )
         
         else:
             st.markdown("""
