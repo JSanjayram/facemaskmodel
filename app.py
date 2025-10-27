@@ -183,11 +183,6 @@ st.markdown("""
         padding-right: 5rem !important;
         max-width: none !important;
     }
-    .main-container {
-        margin-left: 4rem;
-        margin-right: 4rem;
-        padding: 0 2rem;
-    }
 </style>
 """, unsafe_allow_html=True)
 
