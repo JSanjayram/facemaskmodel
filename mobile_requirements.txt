@@ -1,0 +1,7 @@
+kivy>=2.1.0
+kivymd>=1.1.0
+tensorflow-lite>=2.10.0
+opencv-python>=4.5.0
+numpy>=1.21.0
+requests>=2.25.0
+buildozer>=1.4.0
