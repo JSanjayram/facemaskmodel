@@ -179,9 +179,8 @@ st.markdown("""
         background-color: #262730 !important;
     }
     .block-container {
-        padding-left: 10rem !important;
-        padding-right: 10rem !important;
-        padding-top: 2rem !important;
+        padding-left: 5rem !important;
+        padding-right: 5rem !important;
         max-width: none !important;
     }
     .main-container {
@@ -532,4 +531,3 @@ CNN Architecture:
 
 if __name__ == "__main__":
     main()
-    st.markdown('</div>', unsafe_allow_html=True)
