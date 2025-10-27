@@ -424,77 +424,18 @@ CNN Architecture:
         if 'webcam_active' not in st.session_state:
             st.session_state.webcam_active = False
         
-        # Webcam detection
+        # Cloud deployment limitation notice
+        st.warning("⚠️ **Camera Access Limitation**")
+        st.info("""
+        **For Streamlit Cloud deployment:**
+        - Direct webcam access is not available in cloud environments
+        - Use the **Image Detection** tab to upload photos from your device camera
+        - For local development, webcam features work when running locally
+        """)
+        
         if st.session_state.webcam_active:
-            st.subheader("Live Detection")
-            
-            # Create placeholder for video
-            video_placeholder = st.empty()
-            status_placeholder = st.empty()
-            
-            # Start webcam
-            cap = cv2.VideoCapture(0)
-            
-            if cap.isOpened():
-                face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-                
-                while st.session_state.webcam_active:
-                    ret, frame = cap.read()
-                    if not ret:
-                        break
-                    
-                    # Detect faces and masks
-                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                    faces = face_cascade.detectMultiScale(gray, 1.1, 4)
-                    
-                    detections = []
-                    
-                    for (x, y, w, h) in faces:
-                        # Extract and preprocess face
-                        face_roi = frame[y:y+h, x:x+w]
-                        face_resized = cv2.resize(face_roi, (128, 128))
-                        face_normalized = face_resized / 255.0
-                        face_batch = np.expand_dims(face_normalized, axis=0)
-                        
-                        # Predict
-                        prediction = detector.model.predict(face_batch, verbose=0)[0][0]
-                        confidence = prediction if prediction > 0.5 else 1 - prediction
-                        
-                        if confidence >= confidence_threshold:
-                            mask_status = 'Without Mask' if prediction > 0.5 else 'With Mask'
-                            color = (0, 0, 255) if prediction > 0.5 else (0, 255, 0)
-                            
-                            # Draw bounding box
-                            cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
-                            
-                            # Add label
-                            label = f"{mask_status}: {confidence*100:.1f}%"
-                            cv2.putText(frame, label, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
-                            
-                            detections.append({
-                                'status': mask_status,
-                                'confidence': confidence * 100
-                            })
-                    
-                    # Convert BGR to RGB for Streamlit
-                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    
-                    # Display frame
-                    video_placeholder.image(frame_rgb, channels="RGB", use_column_width=True)
-                    
-                    # Display status
-                    if detections:
-                        status_text = "\n".join([f"Face: {d['status']} ({d['confidence']:.1f}%)" for d in detections])
-                        status_placeholder.text(status_text)
-                    else:
-                        status_placeholder.text("No faces detected")
-                    
-                    # Refresh rate control
-                    time.sleep(0.03)  # ~30 FPS
-                
-                cap.release()
-            else:
-                st.error("Cannot access webcam. Please check camera permissions.")
+            st.error("Webcam not available in cloud deployment. Please use Image Detection tab instead.")
+            st.session_state.webcam_active = False
         
         else:
             st.markdown("""
