@@ -465,19 +465,6 @@ CNN Architecture:
             rtc_configuration=RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}),
             media_stream_constraints={"video": True, "audio": False}
         )
-        
-        else:
-            st.markdown("""
-            <div class="detection-card">
-                <h4>🎥 Ready for Live Detection</h4>
-                <p>Click the button above to start real-time mask detection using your camera.</p>
-                <ul>
-                    <li>✅ Real-time face detection</li>
-                    <li>✅ Instant mask classification</li>
-                    <li>✅ Confidence scoring</li>
-                </ul>
-            </div>
-            """, unsafe_allow_html=True)
             
         st.markdown("""
         <div class="detection-card">
