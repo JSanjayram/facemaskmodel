@@ -244,7 +244,16 @@ def main():
     model = load_model()
     
     if model is None:
-        st.error("Model not found! Please ensure 'transfer_face_mask_detector.h5' exists in the current directory.")
+        st.error("🚨 Model not found!")
+        st.info("""
+        **For Deployment:**
+        1. Download `transfer_face_mask_detector.h5` from your local system
+        2. Upload it to your GitHub repository
+        3. Redeploy the Streamlit app
+        
+        **For Local Testing:**
+        Ensure `transfer_face_mask_detector.h5` is in the same directory as this script.
+        """)
         st.stop()
     
     st.success("Model Online!")
