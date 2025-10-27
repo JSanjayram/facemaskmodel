@@ -242,14 +242,17 @@ def main():
     
 
     
-    # Load model
-    detector = load_model()
-    
-    if detector is None:
-        st.error("Model not found! Please train the model first by running 'python train_model.py'")
-        st.stop()
-    
-    st.success("Model Online!")
+    # Load model with error handling
+    try:
+        detector = load_model()
+        if detector is None:
+            st.warning("⚠️ Model not found! Using demo mode.")
+            st.info("Upload the trained model file 'face_mask_detector.h5' to enable full functionality.")
+        else:
+            st.success("Model Online!")
+    except Exception as e:
+        st.error(f"Error loading model: {str(e)}")
+        detector = None
     
     # Main interface with custom styling
     tab1, tab2, tab3 = st.tabs(["Image Detection", "Model Info", "Live Camera"])
@@ -425,59 +428,20 @@ CNN Architecture:
         if 'webcam_active' not in st.session_state:
             st.session_state.webcam_active = False
         
-        # WebRTC camera implementation
-        st.info("📹 **Browser Camera Access** - Click 'START' and allow camera permissions when prompted")
+        # Camera functionality notice
+        st.info("📹 **Camera Feature**")
         
-        class VideoTransformer(VideoTransformerBase):
-            def __init__(self):
-                self.detector = load_model()
-                self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+        if detector is None:
+            st.warning("Camera detection requires the trained model. Please upload the model file first.")
+        else:
+            st.info("Camera detection will be available after model optimization for cloud deployment.")
             
-            def transform(self, frame):
-                img = frame.to_ndarray(format="bgr24")
-                
-                if self.detector:
-                    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                    faces = self.face_cascade.detectMultiScale(gray, 1.1, 4)
-                    
-                    for (x, y, w, h) in faces:
-                        face_roi = img[y:y+h, x:x+w]
-                        face_resized = cv2.resize(face_roi, (128, 128))
-                        face_normalized = face_resized / 255.0
-                        face_batch = np.expand_dims(face_normalized, axis=0)
-                        
-                        prediction = self.detector.model.predict(face_batch, verbose=0)[0][0]
-                        confidence = prediction if prediction > 0.5 else 1 - prediction
-                        
-                        if confidence >= confidence_threshold:
-                            mask_status = 'Without Mask' if prediction > 0.5 else 'With Mask'
-                            color = (0, 0, 255) if prediction > 0.5 else (0, 255, 0)
-                            
-                            cv2.rectangle(img, (x, y), (x+w, y+h), color, 2)
-                            label = f"{mask_status}: {confidence*100:.1f}%"
-                            cv2.putText(img, label, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
-                
-                return img
-        
-        webrtc_streamer(
-            key="mask-detection",
-            video_transformer_factory=VideoTransformer,
-            rtc_configuration=RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}),
-            media_stream_constraints={"video": True, "audio": False}
-        )
-        
-        
         st.markdown("""
-            <div class="detection-card">
-                <h4>🎥 Ready for Live Detection</h4>
-                <p>Click the button above to start real-time mask detection using your camera.</p>
-                <ul>
-                    <li>✅ Real-time face detection</li>
-                    <li>✅ Instant mask classification</li>
-                    <li>✅ Confidence scoring</li>
-                </ul>
-            </div>
-            """, unsafe_allow_html=True)
+        **Alternative: Use Image Upload**
+        - Take a photo with your device camera
+        - Upload it in the 'Image Detection' tab
+        - Get instant mask detection results
+        """)
             
         st.markdown("""
         <div class="detection-card">
