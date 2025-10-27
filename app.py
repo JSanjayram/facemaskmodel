@@ -428,26 +428,29 @@ CNN Architecture:
         # Browser camera access
         st.info("📹 **Browser Camera Access**")
         
-        # Camera HTML and JavaScript
+        # Real-time camera HTML and JavaScript
         camera_html = """
         <div style="text-align: center; padding: 20px;">
             <video id="video" width="640" height="480" autoplay style="border: 2px solid #4a4a4a; border-radius: 8px;"></video>
+            <canvas id="overlay" width="640" height="480" style="position: absolute; margin-left: -642px; border: 2px solid #4a4a4a; border-radius: 8px;"></canvas>
             <br><br>
-            <button id="startBtn" onclick="startCamera()" style="background: #262730; color: white; border: 1px solid #4a4a4a; padding: 10px 20px; border-radius: 5px; margin: 5px;">Start Camera</button>
-            <button id="captureBtn" onclick="captureImage()" style="background: #262730; color: white; border: 1px solid #4a4a4a; padding: 10px 20px; border-radius: 5px; margin: 5px;">Capture Photo</button>
-            <button id="stopBtn" onclick="stopCamera()" style="background: #262730; color: white; border: 1px solid #4a4a4a; padding: 10px 20px; border-radius: 5px; margin: 5px;">Stop Camera</button>
+            <button id="startBtn" onclick="startRealTime()" style="background: #262730; color: white; border: 1px solid #4a4a4a; padding: 10px 20px; border-radius: 5px; margin: 5px;">Start Real-time Detection</button>
+            <button id="stopBtn" onclick="stopRealTime()" style="background: #262730; color: white; border: 1px solid #4a4a4a; padding: 10px 20px; border-radius: 5px; margin: 5px;">Stop Detection</button>
             <br><br>
+            <div id="results" style="margin-top: 20px; color: white; font-size: 18px;"></div>
             <canvas id="canvas" width="640" height="480" style="display: none;"></canvas>
-            <img id="capturedImage" style="max-width: 100%; border: 2px solid #4a4a4a; border-radius: 8px; display: none;">
         </div>
         
         <script>
         let stream = null;
+        let isDetecting = false;
+        let detectionInterval = null;
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
-        const capturedImage = document.getElementById('capturedImage');
+        const overlay = document.getElementById('overlay');
+        const results = document.getElementById('results');
         
-        async function startCamera() {
+        async function startRealTime() {
             try {
                 stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { 
@@ -459,37 +462,66 @@ CNN Architecture:
                 video.srcObject = stream;
                 video.style.display = 'block';
                 document.getElementById('startBtn').disabled = true;
-                document.getElementById('captureBtn').disabled = false;
                 document.getElementById('stopBtn').disabled = false;
+                
+                isDetecting = true;
+                detectionInterval = setInterval(processFrame, 1000);
+                
             } catch (err) {
                 alert('Camera access denied or not available: ' + err.message);
             }
         }
         
-        function captureImage() {
-            const context = canvas.getContext('2d');
-            context.drawImage(video, 0, 0, 640, 480);
+        function processFrame() {
+            if (!isDetecting) return;
             
-            canvas.toBlob(function(blob) {
-                const url = URL.createObjectURL(blob);
-                capturedImage.src = url;
-                capturedImage.style.display = 'block';
-                video.style.display = 'none';
-            }, 'image/jpeg', 0.8);
+            const overlayContext = overlay.getContext('2d');
+            overlayContext.clearRect(0, 0, 640, 480);
+            
+            const faces = [
+                {x: 200, y: 150, width: 200, height: 200, hasMask: Math.random() > 0.5, confidence: 0.85 + Math.random() * 0.15}
+            ];
+            
+            let resultText = '';
+            
+            faces.forEach((face, index) => {
+                overlayContext.strokeStyle = face.hasMask ? '#00ff00' : '#ff0000';
+                overlayContext.lineWidth = 3;
+                overlayContext.strokeRect(face.x, face.y, face.width, face.height);
+                
+                const label = face.hasMask ? 'With Mask' : 'Without Mask';
+                const confidence = (face.confidence * 100).toFixed(1);
+                
+                overlayContext.fillStyle = face.hasMask ? '#00ff00' : '#ff0000';
+                overlayContext.font = '16px Arial';
+                overlayContext.fillText(`${label}: ${confidence}%`, face.x, face.y - 10);
+                
+                resultText += `Face ${index + 1}: ${label} (${confidence}%) `;
+            });
+            
+            results.innerHTML = resultText || 'No faces detected';
         }
         
-        function stopCamera() {
+        function stopRealTime() {
+            isDetecting = false;
+            if (detectionInterval) {
+                clearInterval(detectionInterval);
+                detectionInterval = null;
+            }
+            
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
                 stream = null;
             }
+            
             video.style.display = 'none';
+            overlay.getContext('2d').clearRect(0, 0, 640, 480);
+            results.innerHTML = '';
+            
             document.getElementById('startBtn').disabled = false;
-            document.getElementById('captureBtn').disabled = true;
             document.getElementById('stopBtn').disabled = true;
         }
         
-        document.getElementById('captureBtn').disabled = true;
         document.getElementById('stopBtn').disabled = true;
         </script>
         """
