@@ -199,10 +199,15 @@ def download_model():
         "https://github.com/JSanjayram/facemaskmodel/raw/main/best_mask_model.h5"
     ]
     
-    for url in model_urls:
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    for i, url in enumerate(model_urls):
         try:
-            st.info(f"Downloading model from GitHub...")
-            response = requests.get(url, stream=True, timeout=30)
+            status_text.info(f"Downloading model from GitHub... (Attempt {i+1})")
+            
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+            response = requests.get(url, stream=True, timeout=60, headers=headers)
             
             if response.status_code == 200:
                 total_size = int(response.headers.get('content-length', 0))
@@ -216,15 +221,24 @@ def download_model():
                             
                             if total_size > 0:
                                 progress = downloaded / total_size
-                                st.progress(progress)
+                                progress_bar.progress(progress)
                 
-                st.success("✅ Model downloaded successfully!")
-                return model_path
-                
+                if os.path.getsize(model_path) > 1000000:  # Check if file is > 1MB
+                    status_text.success("✅ Model downloaded successfully!")
+                    progress_bar.empty()
+                    return model_path
+                else:
+                    os.remove(model_path)
+                    status_text.warning("Downloaded file too small, trying next URL...")
+                    
         except Exception as e:
-            st.warning(f"Failed to download from {url}: {str(e)}")
+            status_text.warning(f"Failed to download from URL {i+1}: {str(e)}")
+            if os.path.exists(model_path):
+                os.remove(model_path)
             continue
     
+    status_text.error("Could not download model from any source")
+    progress_bar.empty()
     return None
 
 @st.cache_resource
