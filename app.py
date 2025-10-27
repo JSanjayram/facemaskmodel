@@ -3,6 +3,7 @@ import numpy as np
 from PIL import Image
 import io
 import requests
+import os
 try:
     import cv2
     import tensorflow as tf
@@ -186,6 +187,46 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+def download_model():
+    """Download the trained model from GitHub"""
+    model_path = 'face_mask_detector.h5'
+    
+    if os.path.exists(model_path):
+        return model_path
+    
+    model_urls = [
+        "https://github.com/JSanjayram/facemaskmodel/raw/main/face_mask_detector.h5",
+        "https://github.com/JSanjayram/facemaskmodel/raw/main/best_mask_model.h5"
+    ]
+    
+    for url in model_urls:
+        try:
+            st.info(f"Downloading model from GitHub...")
+            response = requests.get(url, stream=True, timeout=30)
+            
+            if response.status_code == 200:
+                total_size = int(response.headers.get('content-length', 0))
+                
+                with open(model_path, 'wb') as f:
+                    downloaded = 0
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            
+                            if total_size > 0:
+                                progress = downloaded / total_size
+                                st.progress(progress)
+                
+                st.success("✅ Model downloaded successfully!")
+                return model_path
+                
+        except Exception as e:
+            st.warning(f"Failed to download from {url}: {str(e)}")
+            continue
+    
+    return None
+
 @st.cache_resource
 def load_model():
     """Load the trained model"""
@@ -193,8 +234,6 @@ def load_model():
         return None
     
     try:
-        from model_downloader import download_model
-        
         # Download model if not available
         model_path = download_model()
         if model_path is None:
