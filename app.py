@@ -466,8 +466,8 @@ CNN Architecture:
             media_stream_constraints={"video": True, "audio": False}
         )
         
-        else:
-            st.markdown("""
+        
+        st.markdown("""
             <div class="detection-card">
                 <h4>🎥 Ready for Live Detection</h4>
                 <p>Click the button above to start real-time mask detection using your camera.</p>
