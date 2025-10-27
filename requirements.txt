@@ -1,7 +1,6 @@
-streamlit==1.28.0
-tensorflow==2.13.0
-opencv-python==4.8.0.76
-Pillow==9.5.0
-numpy==1.24.3
-requests==2.31.0
-protobuf==3.20.3
+streamlit
+tensorflow
+opencv-python
+Pillow
+numpy
+requests
