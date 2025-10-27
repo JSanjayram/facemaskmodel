@@ -196,17 +196,42 @@ def load_model():
 
 def process_image(image, detector):
     """Process uploaded image for mask detection"""
-    # Demo mode - return original image with demo results
     img_array = np.array(image)
     
-    # Demo results
-    results = [{
-        'status': 'Demo Mode',
-        'confidence': 95.0,
-        'bbox': (50, 50, 100, 100)
-    }]
+    if not DEPS_AVAILABLE or detector is None:
+        return img_array, []
     
-    return img_array, results
+    try:
+        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+        gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+        faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+        
+        results = []
+        for (x, y, w, h) in faces:
+            face_roi = img_array[y:y+h, x:x+w]
+            face_resized = cv2.resize(face_roi, (128, 128))
+            face_normalized = face_resized / 255.0
+            face_batch = np.expand_dims(face_normalized, axis=0)
+            
+            prediction = detector.model.predict(face_batch, verbose=0)[0][0]
+            confidence = prediction if prediction > 0.5 else 1 - prediction
+            
+            mask_status = 'Without Mask' if prediction > 0.5 else 'With Mask'
+            color = (255, 0, 0) if prediction > 0.5 else (0, 255, 0)
+            
+            cv2.rectangle(img_array, (x, y), (x+w, y+h), color, 3)
+            label = f"{mask_status}: {confidence*100:.1f}%"
+            cv2.putText(img_array, label, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+            
+            results.append({
+                'status': mask_status,
+                'confidence': confidence * 100,
+                'bbox': (x, y, w, h)
+            })
+        
+        return img_array, results
+    except Exception:
+        return img_array, []
 
 def main():
     st.title("Face Mask Detection System")
