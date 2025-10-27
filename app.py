@@ -3,7 +3,17 @@ import numpy as np
 from PIL import Image
 import io
 import requests
-DEPS_AVAILABLE = False
+try:
+    import cv2
+    import tensorflow as tf
+    from mask_detection_model import FaceMaskDetector
+    DEPS_AVAILABLE = True
+except ImportError as e:
+    st.error(f"Missing dependencies: {e}")
+    DEPS_AVAILABLE = False
+except Exception as e:
+    st.error(f"Error loading dependencies: {e}")
+    DEPS_AVAILABLE = False
 
 # Configure Streamlit page
 st.set_page_config(
