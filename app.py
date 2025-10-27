@@ -475,31 +475,40 @@ CNN Architecture:
         function processFrame() {
             if (!isDetecting) return;
             
+            const context = canvas.getContext('2d');
             const overlayContext = overlay.getContext('2d');
+            
             overlayContext.clearRect(0, 0, 640, 480);
+            context.drawImage(video, 0, 0, 640, 480);
             
-            const faces = [
-                {x: 200, y: 150, width: 200, height: 200, hasMask: Math.random() > 0.5, confidence: 0.85 + Math.random() * 0.15}
-            ];
-            
-            let resultText = '';
-            
-            faces.forEach((face, index) => {
-                overlayContext.strokeStyle = face.hasMask ? '#00ff00' : '#ff0000';
-                overlayContext.lineWidth = 3;
-                overlayContext.strokeRect(face.x, face.y, face.width, face.height);
+            canvas.toBlob(function(blob) {
+                const formData = new FormData();
+                formData.append('image', blob, 'frame.jpg');
                 
-                const label = face.hasMask ? 'With Mask' : 'Without Mask';
-                const confidence = (face.confidence * 100).toFixed(1);
-                
-                overlayContext.fillStyle = face.hasMask ? '#00ff00' : '#ff0000';
-                overlayContext.font = '16px Arial';
-                overlayContext.fillText(`${label}: ${confidence}%`, face.x, face.y - 10);
-                
-                resultText += `Face ${index + 1}: ${label} (${confidence}%) `;
-            });
-            
-            results.innerHTML = resultText || 'No faces detected';
+                fetch('/process_frame', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.faces) {
+                        let resultText = '';
+                        
+                        data.faces.forEach((face, index) => {
+                            overlayContext.strokeStyle = face.status === 'With Mask' ? '#00ff00' : '#ff0000';
+                            overlayContext.lineWidth = 3;
+                            overlayContext.strokeRect(face.x, face.y, face.width, face.height);
+                            
+                            resultText += `Face ${index + 1}: ${face.status} (${face.confidence.toFixed(1)}%) `;
+                        });
+                        
+                        results.innerHTML = resultText || 'No faces detected';
+                    }
+                })
+                .catch(err => {
+                    results.innerHTML = 'Detection error';
+                });
+            }, 'image/jpeg', 0.8);
         }
         
         function stopRealTime() {
@@ -542,6 +551,46 @@ CNN Architecture:
             <p>This app works perfectly on mobile devices! Access it from any smartphone browser for instant mask detection.</p>
         </div>
         """, unsafe_allow_html=True)
+
+# Backend endpoint for real-time processing
+import streamlit.web.cli as stcli
+from streamlit.web.server import Server
+from streamlit.web.server.server import start_listening
+
+@st.cache_data
+def process_frame_endpoint(image_data):
+    """Process frame for real-time detection"""
+    if not DEPS_AVAILABLE:
+        return {"faces": []}
+    
+    try:
+        detector = load_model()
+        if detector is None:
+            return {"faces": []}
+        
+        # Convert image data to PIL Image
+        image = Image.open(io.BytesIO(image_data))
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        
+        # Process with existing function
+        _, results = process_image(image, detector)
+        
+        # Format for JavaScript
+        faces = []
+        for result in results:
+            faces.append({
+                'x': result['bbox'][0],
+                'y': result['bbox'][1], 
+                'width': result['bbox'][2],
+                'height': result['bbox'][3],
+                'status': result['status'],
+                'confidence': result['confidence']
+            })
+        
+        return {"faces": faces}
+    except Exception:
+        return {"faces": []}
 
 if __name__ == "__main__":
     main()
