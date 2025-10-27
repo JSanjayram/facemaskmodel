@@ -548,9 +548,7 @@ CNN Architecture:
                 const label = face.hasMask ? 'With Mask' : 'Without Mask';
                 const confidence = (face.confidence * 100).toFixed(1);
                 
-                overlayContext.fillStyle = face.hasMask ? '#00ff00' : '#ff0000';
-                overlayContext.font = '16px Arial';
-                overlayContext.fillText(`${label}: ${confidence}%`, face.x, face.y - 10);
+
                 
                 resultText += `Face ${index + 1}: ${label} (${confidence}%) `;
             });
