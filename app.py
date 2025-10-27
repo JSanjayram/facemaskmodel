@@ -429,50 +429,14 @@ CNN Architecture:
         # Browser camera access
         st.info("📹 **Browser Camera Access**")
         
-        # Real-time WebRTC implementation
-        if DEPS_AVAILABLE and detector is not None:
-            class VideoTransformer(VideoTransformerBase):
-                def __init__(self):
-                    self.detector = detector
-                    self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-                
-                def transform(self, frame):
-                    img = frame.to_ndarray(format="bgr24")
-                    
-                    try:
-                        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                        faces = self.face_cascade.detectMultiScale(gray, 1.1, 4)
-                        
-                        for (x, y, w, h) in faces:
-                            face_roi = img[y:y+h, x:x+w]
-                            face_resized = cv2.resize(face_roi, (128, 128))
-                            face_normalized = face_resized / 255.0
-                            face_batch = np.expand_dims(face_normalized, axis=0)
-                            
-                            prediction = self.detector.model.predict(face_batch, verbose=0)[0][0]
-                            confidence = prediction if prediction > 0.5 else 1 - prediction
-                            
-                            if confidence >= confidence_threshold:
-                                mask_status = 'Without Mask' if prediction > 0.5 else 'With Mask'
-                                color = (0, 0, 255) if prediction > 0.5 else (0, 255, 0)
-                                
-                                cv2.rectangle(img, (x, y), (x+w, y+h), color, 2)
-                                label = f"{mask_status}: {confidence*100:.1f}%"
-                                cv2.putText(img, label, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
-                    
-                    except Exception:
-                        pass
-                    
-                    return img
-            
-            webrtc_streamer(
-                key="mask-detection",
-                video_transformer_factory=VideoTransformer,
-                rtc_configuration=RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}),
-                media_stream_constraints={"video": True, "audio": False}
-            )
-        else:
-            st.error("Real-time detection requires the trained model and dependencies.")
+        # Real-time detection notice
+        st.warning("⚠️ Real-time camera detection is not available in cloud deployment due to technical limitations.")
+        st.info("""
+        **Alternative Solutions:**
+        1. **Image Upload**: Use the Image Detection tab to upload photos
+        2. **Local Deployment**: Run the app locally for full webcam support
+        3. **Mobile Camera**: Take photos with your phone and upload them
+        """)
             
         camera_html = """
         <div style="text-align: center; padding: 20px;">
