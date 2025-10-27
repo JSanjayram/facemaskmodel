@@ -1,20 +1,14 @@
 import streamlit as st
+import cv2
 import numpy as np
 from PIL import Image
-import io
-import requests
+import tensorflow as tf
+from mask_detection_model import FaceMaskDetector
+import tempfile
 import os
-try:
-    import cv2
-    import tensorflow as tf
-    from mask_detection_model import FaceMaskDetector
-    DEPS_AVAILABLE = True
-except ImportError as e:
-    st.error(f"Missing dependencies: {e}")
-    DEPS_AVAILABLE = False
-except Exception as e:
-    st.error(f"Error loading dependencies: {e}")
-    DEPS_AVAILABLE = False
+import io
+import time
+import requests
 
 # Configure Streamlit page
 st.set_page_config(
@@ -187,131 +181,59 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-def download_model():
-    """Download the trained model from GitHub"""
-    model_path = 'face_mask_detector.h5'
-    
-    if os.path.exists(model_path):
-        return model_path
-    
-    model_urls = [
-        "https://github.com/JSanjayram/facemaskmodel/raw/main/face_mask_detector.h5",
-        "https://github.com/JSanjayram/facemaskmodel/raw/main/best_mask_model.h5"
-    ]
-    
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-    
-    for i, url in enumerate(model_urls):
-        try:
-            status_text.info(f"Downloading model from GitHub... (Attempt {i+1})")
-            
-            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-            response = requests.get(url, stream=True, timeout=60, headers=headers)
-            
-            if response.status_code == 200:
-                total_size = int(response.headers.get('content-length', 0))
-                
-                with open(model_path, 'wb') as f:
-                    downloaded = 0
-                    for chunk in response.iter_content(chunk_size=8192):
-                        if chunk:
-                            f.write(chunk)
-                            downloaded += len(chunk)
-                            
-                            if total_size > 0:
-                                progress = downloaded / total_size
-                                progress_bar.progress(progress)
-                
-                if os.path.getsize(model_path) > 1000000:  # Check if file is > 1MB
-                    status_text.success("✅ Model downloaded successfully!")
-                    progress_bar.empty()
-                    return model_path
-                else:
-                    os.remove(model_path)
-                    status_text.warning("Downloaded file too small, trying next URL...")
-                    
-        except Exception as e:
-            status_text.warning(f"Failed to download from URL {i+1}: {str(e)}")
-            if os.path.exists(model_path):
-                os.remove(model_path)
-            continue
-    
-    status_text.error("Could not download model from any source")
-    progress_bar.empty()
-    return None
-
 @st.cache_resource
 def load_model():
     """Load the trained model"""
-    if not DEPS_AVAILABLE:
-        return None
-    
     try:
-        # Download model if not available
-        model_path = download_model()
-        if model_path is None:
-            return None
-            
         detector = FaceMaskDetector()
-        if detector.load_model(model_path):
-            return detector
-        else:
-            return None
-    except Exception as e:
-        st.error(f"Error loading model: {str(e)}")
+        detector.load_model('face_mask_detector.h5')
+        return detector
+    except:
         return None
 
 def process_image(image, detector):
     """Process uploaded image for mask detection"""
+    # Convert PIL to OpenCV format
     img_array = np.array(image)
     
-    if not DEPS_AVAILABLE:
-        return img_array, []
+    # Load face cascade
+    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
     
-    try:
-        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-        gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-        faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+    # Detect faces
+    gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+    faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+    
+    results = []
+    for (x, y, w, h) in faces:
+        # Extract and preprocess face
+        face_roi = img_array[y:y+h, x:x+w]
+        face_resized = cv2.resize(face_roi, (128, 128))
+        face_normalized = face_resized / 255.0
+        face_batch = np.expand_dims(face_normalized, axis=0)
         
-        results = []
-        for (x, y, w, h) in faces:
-            # Use real model if available, otherwise use heuristic
-            if detector and detector.model:
-                face_roi = img_array[y:y+h, x:x+w]
-                face_resized = cv2.resize(face_roi, (128, 128))
-                face_normalized = face_resized / 255.0
-                face_batch = np.expand_dims(face_normalized, axis=0)
-                
-                prediction = detector.model.predict(face_batch, verbose=0)[0][0]
-                confidence = prediction if prediction > 0.5 else 1 - prediction
-                mask_status = 'Without Mask' if prediction > 0.5 else 'With Mask'
-                confidence = confidence * 100
-            else:
-                # Heuristic detection based on face region analysis
-                face_roi = img_array[y:y+h, x:x+w]
-                lower_face = face_roi[int(h*0.6):, :]
-                avg_intensity = np.mean(lower_face)
-                
-                # If lower face is darker (covered), likely has mask
-                mask_status = 'With Mask' if avg_intensity < 120 else 'Without Mask'
-                confidence = 75 + np.random.random() * 20
-            
-            color = (0, 255, 0) if mask_status == 'With Mask' else (255, 0, 0)
-            
-            cv2.rectangle(img_array, (x, y), (x+w, y+h), color, 3)
-            label = f"{mask_status}: {confidence:.1f}%"
-            cv2.putText(img_array, label, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
-            
-            results.append({
-                'status': mask_status,
-                'confidence': confidence,
-                'bbox': (x, y, w, h)
-            })
+        # Predict
+        prediction = detector.model.predict(face_batch, verbose=0)[0][0]
+        confidence = prediction if prediction > 0.5 else 1 - prediction
         
-        return img_array, results
-    except Exception:
-        return img_array, []
+
+        
+        mask_status = 'Without Mask' if prediction > 0.5 else 'With Mask'
+        color = (255, 0, 0) if prediction > 0.5 else (0, 255, 0)
+        
+        # Draw bounding box
+        cv2.rectangle(img_array, (x, y), (x+w, y+h), color, 3)
+        
+        # Add label
+        label = f"{mask_status}: {confidence*100:.1f}%"
+        cv2.putText(img_array, label, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+        
+        results.append({
+            'status': mask_status,
+            'confidence': confidence * 100,
+            'bbox': (x, y, w, h)
+        })
+    
+    return img_array, results
 
 def main():
     st.title("Face Mask Detection System")
@@ -319,12 +241,14 @@ def main():
     
 
     
-    # Load model with cloud download
+    # Load model
     detector = load_model()
-    if detector is not None:
-        st.success("✅ Real CNN Model Loaded Successfully!")
-    else:
-        st.warning("⚠️ Using fallback detection. Upload your model to cloud storage for full accuracy.")
+    
+    if detector is None:
+        st.error("Model not found! Please train the model first by running 'python train_model.py'")
+        st.stop()
+    
+    st.success("Model Online!")
     
     # Main interface with custom styling
     tab1, tab2, tab3 = st.tabs(["Image Detection", "Model Info", "Live Camera"])
@@ -500,134 +424,90 @@ CNN Architecture:
         if 'webcam_active' not in st.session_state:
             st.session_state.webcam_active = False
         
-        # Browser camera access
-        st.info("📹 **Browser Camera Access**")
-        
-        # Real-time detection notice
-        st.warning("⚠️ Real-time camera detection is not available in cloud deployment due to technical limitations.")
-        st.info("""
-        **Alternative Solutions:**
-        1. **Image Upload**: Use the Image Detection tab to upload photos
-        2. **Local Deployment**: Run the app locally for full webcam support
-        3. **Mobile Camera**: Take photos with your phone and upload them
-        """)
+        # Webcam detection
+        if st.session_state.webcam_active:
+            st.subheader("Live Detection")
             
-        camera_html = """
-        <div style="text-align: center; padding: 20px;">
-            <p style="color: white;">Use the WebRTC camera above for real-time detection with your trained model.</p>
-        </div>
-        
-        <script>
-        let stream = null;
-        let isDetecting = false;
-        let detectionInterval = null;
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const overlay = document.getElementById('overlay');
-        const results = document.getElementById('results');
-        
-        async function startRealTime() {
-            try {
-                stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { 
-                        width: 640, 
-                        height: 480,
-                        facingMode: 'user'
-                    } 
-                });
-                video.srcObject = stream;
-                video.style.display = 'block';
-                document.getElementById('startBtn').disabled = true;
-                document.getElementById('stopBtn').disabled = false;
+            # Create placeholder for video
+            video_placeholder = st.empty()
+            status_placeholder = st.empty()
+            
+            # Start webcam
+            cap = cv2.VideoCapture(0)
+            
+            if cap.isOpened():
+                face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
                 
-                isDetecting = true;
-                detectionInterval = setInterval(processFrame, 1000);
+                while st.session_state.webcam_active:
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+                    
+                    # Detect faces and masks
+                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+                    
+                    detections = []
+                    
+                    for (x, y, w, h) in faces:
+                        # Extract and preprocess face
+                        face_roi = frame[y:y+h, x:x+w]
+                        face_resized = cv2.resize(face_roi, (128, 128))
+                        face_normalized = face_resized / 255.0
+                        face_batch = np.expand_dims(face_normalized, axis=0)
+                        
+                        # Predict
+                        prediction = detector.model.predict(face_batch, verbose=0)[0][0]
+                        confidence = prediction if prediction > 0.5 else 1 - prediction
+                        
+                        if confidence >= confidence_threshold:
+                            mask_status = 'Without Mask' if prediction > 0.5 else 'With Mask'
+                            color = (0, 0, 255) if prediction > 0.5 else (0, 255, 0)
+                            
+                            # Draw bounding box
+                            cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
+                            
+                            # Add label
+                            label = f"{mask_status}: {confidence*100:.1f}%"
+                            cv2.putText(frame, label, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+                            
+                            detections.append({
+                                'status': mask_status,
+                                'confidence': confidence * 100
+                            })
+                    
+                    # Convert BGR to RGB for Streamlit
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    
+                    # Display frame
+                    video_placeholder.image(frame_rgb, channels="RGB", use_column_width=True)
+                    
+                    # Display status
+                    if detections:
+                        status_text = "\n".join([f"Face: {d['status']} ({d['confidence']:.1f}%)" for d in detections])
+                        status_placeholder.text(status_text)
+                    else:
+                        status_placeholder.text("No faces detected")
+                    
+                    # Refresh rate control
+                    time.sleep(0.03)  # ~30 FPS
                 
-            } catch (err) {
-                alert('Camera access denied or not available: ' + err.message);
-            }
-        }
+                cap.release()
+            else:
+                st.error("Cannot access webcam. Please check camera permissions.")
         
-        function processFrame() {
-            if (!isDetecting) return;
-            
-            const context = canvas.getContext('2d');
-            const overlayContext = overlay.getContext('2d');
-            
-            overlayContext.clearRect(0, 0, 640, 480);
-            context.drawImage(video, 0, 0, 640, 480);
-            
-            // Simulate real detection with face detection API
-            const faces = detectFaces();
-            let resultText = '';
-            
-            faces.forEach((face, index) => {
-                overlayContext.strokeStyle = face.status === 'With Mask' ? '#00ff00' : '#ff0000';
-                overlayContext.lineWidth = 3;
-                overlayContext.strokeRect(face.x, face.y, face.width, face.height);
-                
-                resultText += `Face ${index + 1}: ${face.status} (${face.confidence.toFixed(1)}%) `;
-            });
-            
-            results.innerHTML = resultText || 'No faces detected';
-        }
-        
-        function detectFaces() {
-            // Enhanced detection simulation with more realistic behavior
-            const numFaces = Math.random() > 0.7 ? 1 : 0;
-            const faces = [];
-            
-            for (let i = 0; i < numFaces; i++) {
-                const x = 150 + Math.random() * 200;
-                const y = 100 + Math.random() * 200;
-                const size = 150 + Math.random() * 100;
-                
-                faces.push({
-                    x: x,
-                    y: y,
-                    width: size,
-                    height: size,
-                    status: Math.random() > 0.6 ? 'With Mask' : 'Without Mask',
-                    confidence: 85 + Math.random() * 10
-                });
-            }
-            
-            return faces;
-        }
-        
-        function stopRealTime() {
-            isDetecting = false;
-            if (detectionInterval) {
-                clearInterval(detectionInterval);
-                detectionInterval = null;
-            }
-            
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                stream = null;
-            }
-            
-            video.style.display = 'none';
-            overlay.getContext('2d').clearRect(0, 0, 640, 480);
-            results.innerHTML = '';
-            
-            document.getElementById('startBtn').disabled = false;
-            document.getElementById('stopBtn').disabled = true;
-        }
-        
-        document.getElementById('stopBtn').disabled = true;
-        </script>
-        """
-        
-        st.components.v1.html(camera_html, height=700)
-        
-        st.markdown("""
-        **Instructions:**
-        1. Click "Start Camera" to request camera access
-        2. Allow camera permissions when prompted
-        3. Click "Capture Photo" to take a picture
-        4. Upload the captured image in the Image Detection tab
-        """)
+        else:
+            st.markdown("""
+            <div class="detection-card">
+                <h4>🎥 Ready for Live Detection</h4>
+                <p>Click the button above to start real-time mask detection using your camera.</p>
+                <ul>
+                    <li>✅ Real-time face detection</li>
+                    <li>✅ Instant mask classification</li>
+                    <li>✅ Confidence scoring</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
             
         st.markdown("""
         <div class="detection-card">
@@ -635,46 +515,6 @@ CNN Architecture:
             <p>This app works perfectly on mobile devices! Access it from any smartphone browser for instant mask detection.</p>
         </div>
         """, unsafe_allow_html=True)
-
-# Backend endpoint for real-time processing
-import streamlit.web.cli as stcli
-from streamlit.web.server import Server
-from streamlit.web.server.server import start_listening
-
-@st.cache_data
-def process_frame_endpoint(image_data):
-    """Process frame for real-time detection"""
-    if not DEPS_AVAILABLE:
-        return {"faces": []}
-    
-    try:
-        detector = load_model()
-        if detector is None:
-            return {"faces": []}
-        
-        # Convert image data to PIL Image
-        image = Image.open(io.BytesIO(image_data))
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
-        
-        # Process with existing function
-        _, results = process_image(image, detector)
-        
-        # Format for JavaScript
-        faces = []
-        for result in results:
-            faces.append({
-                'x': result['bbox'][0],
-                'y': result['bbox'][1], 
-                'width': result['bbox'][2],
-                'height': result['bbox'][3],
-                'status': result['status'],
-                'confidence': result['confidence']
-            })
-        
-        return {"faces": faces}
-    except Exception:
-        return {"faces": []}
 
 if __name__ == "__main__":
     main()
