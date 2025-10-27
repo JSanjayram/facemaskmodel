@@ -178,11 +178,6 @@ st.markdown("""
     pre {
         background-color: #262730 !important;
     }
-    .block-container {
-        padding-left: 5rem !important;
-        padding-right: 5rem !important;
-        max-width: none !important;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -241,9 +236,6 @@ def process_image(image, detector):
     return img_array, results
 
 def main():
-    # Add custom container with padding
-    st.markdown('<div class="main-container">', unsafe_allow_html=True)
-    
     st.title("Face Mask Detection System")
     st.markdown("<div style='text-align: center;'><strong>AI-powered mask detection using CNN | 90%+ Accuracy</strong></div>", unsafe_allow_html=True)
     
